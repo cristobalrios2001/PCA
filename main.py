@@ -1,93 +1,68 @@
-#------------------------------ Importamos las librerias ------------------------------
 import cv2
-import mediapipe as mp
+import numpy as np
 import serial
 
-#----------------------------- Puerto Serial Configuracion ----------------------------
-com = serial.Serial("COM3", 9600, write_timeout= 10)
-d = 'd'
-i = 'i'
-p = 'p'
+COM = "COM6"
+BAUD = 9600
+ser = serial.Serial(COM, BAUD)
 
-#------------------------------ Declaramos el detector --------------------------------
-detector = mp.solutions.face_detection
-dibujo = mp.solutions.drawing_utils
+cap = cv2.VideoCapture(1)
+azulBajo = np.array([160,100,20], np.uint8)
+azulAlto = np.array([180, 255, 255],  np.uint8)
 
-#------------------------------ Realizamos VideoCaptura --------------------------------
-cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+while True:
+    ret, frame = cap.read()
+    if ret:
+        frame = cv2.flip(frame, 1)
+        frameHSV = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+        mascara = cv2.inRange(frameHSV, azulBajo, azulAlto)
+        contornos, _ = cv2.findContours(mascara, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-#-------------------------------Empezamos el while True --------------------------------
-with detector.FaceDetection(min_detection_confidence=0.75) as rostros:
-    while True:
-        ret, frame = cap.read()
+        for c in contornos:
+            area = cv2.contourArea(c)
+            if area > 6000:
+                M = cv2.moments(c)
+                if M["m00"] == 0:
+                    M["m00"] == 1
 
-        #Aplicamos espejo a los frames
-        frame = cv2.flip(frame,1)
+                x = int(M["m10"] / M["m00"])
+                y = int(M["m01"] / M["m00"])
 
-        #Correccion de color
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                cv2.circle(frame, (x,y), 7, (0, 0, 255), -1)
+                font = cv2.FONT_HERSHEY_SIMPLEX
+                cv2.putText(frame, "{},{}".format(x,y), (x+10, y), font , 1.2, (0,0,255), 2 , cv2.LINE_AA)
+                nuevoContorno = cv2.convexHull(c)
+                cv2.drawContours(frame, [nuevoContorno], 0, (255, 0, 0), 3)
 
-        #Detectamos los rostros
-        resultado = rostros.process(rgb)
+                if x < 200:
+                    print("Mover a la izq 100%")
+                    ser.write(b"izq1\n")
+                elif 420 > x > 200:
+                    print("Mover a la izq 60%")
+                    ser.write(b"izq2\n")
 
+                elif 520 > x >= 420:
+                    print("Mover a la izq 30%")
+                    ser.write(b"izq3\n")
 
-        #Si hay rostros entramos al if
-        if resultado.detections is not None:
-            for rostro in resultado.detections:
-                dibujo.draw_detection(frame, rostro, dibujo.DrawingSpec(color=(0,255,0),))
+                elif 520 <= x < 650:
+                    print("Mover al centro")
+                    ser.write(b"ctr\n")
 
-                for id, puntos in enumerate(resultado.detections):
-                    #Mostramos toda la informacion
-                    #print("Puntos: ", resultado.detections)
+                elif 650 <= x < 860:
+                    print("Mover a la der 30%")
+                    ser.write(b"der3\n")
+                elif 860 <= x < 1080:
+                    print("Mover a la der 60%")
+                    ser.write(b"der2\n")
+                elif x >= 1080:
+                    print("Mover a la der 100%")
+                    ser.write(b"der1\n")
 
-                    #Extraemos el ancho y el alto del frame
-                    al, an, c = frame.shape
-
-                    #Extraemos el medio de la pantalla
-                    centro = int(an / 2)
-
-                    #Extraemos las coordenadas X e Y min
-                    x = puntos.location_data.relative_bounding_box.xmin
-                    y = puntos.location_data.relative_bounding_box.ymin
-
-                    #Extraemos el ancho y el alto
-                    ancho = puntos.location_data.relative_bounding_box.width
-                    alto = puntos.location_data.relative_bounding_box.height
-
-                    #Pasamos X e Y a coordenadas en pixeles
-                    x, y = int(x * an), int(y * al)
-                    print("X, Y: ", x, y)
-
-                    #Pasamos el ancho y el alto a pixeles
-                    x1, y1 = int(ancho * an), int(alto * al)
-
-                    #Extraemos el punto central
-                    cx = (x + (x + x1)) // 2
-                    cy = (y + (y + y1)) // 2
-                    #print("Centro: ", cx, cy)
-
-                    #Mostrar un punto en el centro
-                    cv2.circle(frame, (cx, cy), 3, (0, 0, 255), cv2.FILLED)
-                    cv2.line(frame, (cx, 0), (cx, 480), (0, 0, 255), 2)
-
-                    #Condiciones para mover el servo
-                    if cx < centro - 50:
-                        #Movemos hacia la izquierda
-                        print("Izquierda")
-                        com.write(i.encode('ascii'))
-                    elif cx > centro + 50:
-                        #Movemos hacia la derecha
-                        print("Derecha")
-                        com.write(d.encode('ascii'))
-                    elif cx == centro:
-                        #Paramos el servo
-                        print("Parar")
-                        com.write(p.encode('ascii'))
-
-
-        cv2.imshow("Camara", frame)
-        t = cv2.waitKey(1)
-        if t == 27:
+        cv2.imshow("frame", frame)
+        if cv2.waitKey(1) & 0xFF == ord("s"):
+            ser.close()
             break
+
 cap.release()
 cv2.destroyAllWindows()

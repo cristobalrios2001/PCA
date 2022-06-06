@@ -6,9 +6,19 @@ COM = "COM6"
 BAUD = 9600
 ser = serial.Serial(COM, BAUD)
 
-cap = cv2.VideoCapture(1)
-azulBajo = np.array([160,100,20], np.uint8)
-azulAlto = np.array([180, 255, 255],  np.uint8)
+#cap = cv2.VideoCapture(3)
+
+#--------------------------------
+cap = cv2.VideoCapture(3)
+
+cap.set(3, 1280)
+cap.set(4, 720)
+
+#-----------------------------
+
+
+azulBajo = np.array([0,100,20], np.uint8)
+azulAlto = np.array([20, 255, 255],  np.uint8)
 
 while True:
     ret, frame = cap.read()
@@ -28,11 +38,11 @@ while True:
                 x = int(M["m10"] / M["m00"])
                 y = int(M["m01"] / M["m00"])
 
-                cv2.circle(frame, (x,y), 7, (0, 0, 255), -1)
+                #cv2.circle(frame, (x,y), 7, (0, 0, 255), -1)
                 font = cv2.FONT_HERSHEY_SIMPLEX
                 cv2.putText(frame, "{},{}".format(x,y), (x+10, y), font , 1.2, (0,0,255), 2 , cv2.LINE_AA)
                 nuevoContorno = cv2.convexHull(c)
-                cv2.drawContours(frame, [nuevoContorno], 0, (255, 0, 0), 3)
+                #cv2.drawContours(frame, [nuevoContorno], 0, (255, 0, 0), 3)
 
                 if x < 200:
                     print("Mover a la izq 100%")
